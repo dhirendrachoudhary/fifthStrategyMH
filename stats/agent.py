@@ -1,26 +1,55 @@
 import pkg_resources
 import types
-import pkg_resources
-import types
 import time
-
 import numpy as np
 import pandas as pd
-# import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set()
-
+from IPython import display
+import math
+from pprint import pprint
+import pandas as pd
+import numpy as np
+import nltk
+import matplotlib.pyplot as plt
+import seaborn as sns
+import praw
+sns.set(style='darkgrid', context='talk', palette='Dark2')
 from pandas_datareader import data as pdr
 import yfinance as yf
 yf.pdr_override()
 
+def reddit_analysis():
+    # nltk.download('vader_lexicon')
+    reddit = praw.Reddit(client_id='7jUlWSWelE0zpg',
+                         client_secret='V8W2JZJs05cYOFCRb6oMTN7TXvY',
+                         user_agent='cyberdhirendra')
+    headlines = set()
+    for submission in reddit.subreddit('Amazon').new(limit=None):
+        headlines.add(submission.title)
+        display.clear_output()
+    from nltk.sentiment.vader import SentimentIntensityAnalyzer as SIA
+
+    sia = SIA()
+    results = []
+
+    for line in headlines:
+        pol_score = sia.polarity_scores(line)
+        pol_score['headline'] = line
+        results.append(pol_score)
+
+    dtf = pd.DataFrame.from_records(results)
+    dtf['label'] = 0
+    dtf.loc[dtf['compound'] > 0.2, 'label'] = 1
+    dtf.loc[dtf['compound'] < -0.2, 'label'] = -1
+    counts = dtf.label.value_counts(normalize=True) * 100
+    return counts[-1]
+neg = reddit_analysis()
+
 class Deep_Evolution_Strategy:
-
     inputs = None
-
     def __init__(
         self, weights, reward_function, population_size, sigma, learning_rate
     ):
@@ -95,6 +124,7 @@ class Agent:
     SIGMA = 0.1
     LEARNING_RATE = 0.03
 
+
     def __init__(self, model, window_size, trend, skip, initial_money, perc=10):
         self.model = model
         self.window_size = window_size
@@ -137,7 +167,7 @@ class Agent:
 
             if action == 1 and starting_money >= self.trend[t]:
                 inventory.append(self.trend[t])
-                starting_money -= self.trend[t]
+                starting_money -= close[t]
 
             elif action == 2 and len(inventory):
                 bought_price = inventory.pop(0)
@@ -160,37 +190,24 @@ class Agent:
             action = self.act(state)
             next_state = self.get_state(t + 1)
 
-            if action == 1 and initial_money >= self.trend[t]:
-
-                # buying_capacity = int(initial_money / self.trend[t])
-                # to_buy = self.perc * buying_capacity
-                # to_buy = 1 if to_buy < 1 else to_buy
-                
-                to_buy = 1
-                for i in range(0, to_buy):
-                    inventory.append(self.trend[t])
-                    initial_money -= self.trend[t]
-                    states_buy.append(t)
-                    print('day %d: buy 1 unit at price %f, total balance %f' % (t, self.trend[t], initial_money))
+            if action == 1 and initial_money >= self.trend[t] and neg<50:
+                inventory.append(self.trend[t])
+                initial_money -= self.trend[t]
+                states_buy.append(t)
+                print('day %d: buy 1 unit at price %f, total balance %f' % (t, self.trend[t], initial_money))
 
             elif action == 2 and len(inventory):
-                # to_sell = int(len(inventory) * self.perc)
-                # to_sell = 1 if to_sel < 1 else to_sell
-                
-                to_sell = 1
-                for i in range(0, to_sell):
-                    bought_price = inventory.pop(0)
-                    initial_money += self.trend[t]
-                    states_sell.append(t)
-                    try:
-                        invest = ((self.trend[t] - bought_price) / bought_price) * 100
-                    except Exception as e:
-                        print(str(e))
-                        invest = 0
-                    print(
-                        'day %d, sell 1 unit at price %f, investment %f %%, total balance %f,'
-                        % (t, self.trend[t], invest, initial_money)
-                    )
+                bought_price = inventory.pop(0)
+                initial_money += self.trend[t]
+                states_sell.append(t)
+                try:
+                    invest = ((close[t] - bought_price) / bought_price) * 100
+                except:
+                    invest = 0
+                print(
+                    'day %d, sell 1 unit at price %f, investment %f %%, total balance %f,'
+                    % (t, close[t], invest, initial_money)
+                )
             state = next_state
 
         invest = ((initial_money - starting_money) / starting_money) * 100
@@ -200,20 +217,21 @@ class Agent:
 
 
 def make_model(company, window_size=30, start="2019-04-01"):
+
     print(start)
 
     df_full = pdr.get_data_yahoo(company, start=start).reset_index()
-    df_full.to_csv('output/'+company+'.csv',index=False)
-    df_full = pd.read_csv('output/'+company+'.csv')
-    
+    #df_full.to_csv('output/'+company+'.csv',index=False)
+    #df_full = pd.read_csv('output/'+company+'.csv')
+
     model = Model(input_size = window_size, layer_size = 500, output_size = 3)
     model.df = df_full.copy()
-
     return model
 
 def make_agent(model, initial_money=10000, iterations=500, checkpoint=10):
     window_size = model.window_size
     df = model.df
+    global close
     close = df.Close.values.tolist()
     skip = 1
     agent = Agent(model = model,
@@ -230,7 +248,7 @@ def make_agent(model, initial_money=10000, iterations=500, checkpoint=10):
 def run_once(company, iterations=500, initial_money=10000):
 
     model = make_model(company)
-    return make_agent(model, initial_money, iterations)
+    return make_agent(model, initial_money,iterations)
 
 
 # agent = run_once("AMZN", iterations=500)

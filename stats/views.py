@@ -68,11 +68,11 @@ def invest(request):
     else:
         company = Company.objects.get(pk=request.data.get('company'))
 
-    money_saved = 1000
+    money_saved = 0
 
     model = make_model(company.code, start="{}-{}-{}".format(date.year, date.month, date.day))
 
-    agent = make_agent(model, money - money_saved, iterations=100)
+    agent = make_agent(model, money - money_saved, iterations=500)
 
     states_buy, states_sell, total_gains, invest = agent.buy()
 

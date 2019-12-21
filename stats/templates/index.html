@@ -92,8 +92,9 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@8"></script>
 <script>
 
-const overallChart = $("#overallChart").get(0)
-const investment_data = {{ investments_json|safe }}
+const overallChart = $("#overallChart").get(0);
+investment_data = {{ investments_json|safe }}
+//const investment_data =  investments_json
 const ctx = overallChart.getContext('2d')
 
 if(investment_data.length < 1) {
